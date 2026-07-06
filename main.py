@@ -1,1 +1,1 @@
-import sysfrom PyQt5.QtWidgets import QApplication, QMainWindowdef main():    app = QApplication(sys.argv)    window = QMainWindow()    window.setWindowTitle("Калькулятор скидок")    window.resize(800, 600)    window.show()    sys.exit(app.exec_())if __name__ == "__main__":    main()
+import sysfrom PyQt5.QtWidgets import QApplicationfrom design import MainWindowdef main():    app = QApplication(sys.argv)    window = MainWindow()    window.show()    sys.exit(app.exec_())if __name__ == "__main__":    main()
