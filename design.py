@@ -4,7 +4,8 @@ from PyQt5.QtWidgets import (
     QHeaderView, QGroupBox, QFrame
 )
 from PyQt5.QtCore import Qt
-
+from PyQt5.QtWidgets import QTableWidgetItem
+from database import DatabaseManager
 
 class MainWindow(QMainWindow):
 
@@ -19,6 +20,8 @@ class MainWindow(QMainWindow):
 
         self._setup_ui()
         self._apply_styles()
+        self._bind_signals()
+        self._init_db()
 
     def _setup_ui(self):
         main_layout = QVBoxLayout()
@@ -145,7 +148,6 @@ class MainWindow(QMainWindow):
         self.lbl_status.setAlignment(Qt.AlignCenter)
         main_layout.addWidget(self.lbl_status)
     def _apply_styles(self):
-        """Стилизация через QSS."""
         self.setStyleSheet("""
             QMainWindow {
                 background-color: #f0f2f5;
@@ -174,3 +176,82 @@ class MainWindow(QMainWindow):
                 font-weight: bold;
             }
         """)
+
+    def _init_db(self):
+        self.db = DatabaseManager()
+        self.db.init_db()
+        self._refresh_history()
+
+    def _bind_signals(self):
+        self.btn_calculate.clicked.connect(self._on_calculate)
+        self.btn_add_discount.clicked.connect(self._on_add_discount)
+        self.btn_remove_discount.clicked.connect(self._on_remove_discount)
+        self.btn_clear_discounts.clicked.connect(self._on_clear_discounts)
+        self.btn_load_photo.clicked.connect(self._on_load_photo)
+        self.btn_save_history.clicked.connect(self._on_save_history)
+        self.btn_update_history.clicked.connect(self._on_update_history)
+        self.btn_delete_history.clicked.connect(self._on_delete_history)
+        self.btn_export_csv.clicked.connect(self._on_export_csv)
+
+    def _on_calculate(self):
+        price = self.spin_price.value()
+        discount = self.spin_discount.value()
+        tax = self.spin_tax.value()
+
+        final_price = price * (1 - discount / 100) * (1 + tax / 100)
+        saved = price - final_price
+
+        self.lbl_final_price.setText(f"{final_price:.2f} руб.")
+        self.lbl_saved.setText(f"Экономия: {saved:.2f} руб.")
+        self.final_price = final_price
+        self.saved = saved
+
+    def _on_add_discount(self):
+        value = self.spin_discount.value()
+        if value > 0:
+            self.list_discounts.addItem(f"{value:.1f}%")
+            self.spin_discount.setValue(0)
+
+    def _on_remove_discount(self):
+        row = self.list_discounts.currentRow()
+        if row >= 0:
+            self.list_discounts.takeItem(row)
+
+    def _on_clear_discounts(self):
+        self.list_discounts.clear()
+
+    def _on_load_photo(self):
+        pass
+
+    def _on_save_history(self):
+        if hasattr(self, 'final_price'):
+            discounts = ", ".join([self.list_discounts.item(i).text() for i in range(self.list_discounts.count())])
+            data = {
+                "price": self.spin_price.value(),
+                "discounts": discounts,
+                "tax": self.spin_tax.value(),
+                "final_price": self.final_price,
+                "saved": self.saved
+            }
+            self.db.insert_record(data)
+            self._refresh_history()
+
+    def _on_update_history(self):
+        pass
+
+    def _on_delete_history(self):
+        pass
+
+    def _on_export_csv(self):
+        pass
+
+    def _refresh_history(self):
+        self.table_history.setRowCount(0)
+        records = self.db.get_all()
+        for i, rec in enumerate(records):
+            self.table_history.insertRow(i)
+            self.table_history.setItem(i, 0, QTableWidgetItem(str(rec["price"])))
+            self.table_history.setItem(i, 1, QTableWidgetItem(rec["discounts"]))
+            self.table_history.setItem(i, 2, QTableWidgetItem(str(rec["tax"])))
+            self.table_history.setItem(i, 3, QTableWidgetItem(str(rec["final_price"])))
+            self.table_history.setItem(i, 4, QTableWidgetItem(str(rec["saved"])))
