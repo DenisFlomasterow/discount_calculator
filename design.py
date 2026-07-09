@@ -1,12 +1,17 @@
+import csv
+import logging
+
+from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QFormLayout,
     QPushButton, QLabel, QDoubleSpinBox, QListWidget, QTableWidget,
-    QHeaderView, QGroupBox, QFrame
+    QHeaderView, QGroupBox, QFrame, QMessageBox, QFileDialog,
+    QTableWidgetItem
 )
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QTableWidgetItem, QMessageBox
-from database import DatabaseManager
+from PIL import Image
 
+from database import DatabaseManager
 class MainWindow(QMainWindow):
 
     def __init__(self):
@@ -243,7 +248,28 @@ class MainWindow(QMainWindow):
         self.list_discounts.clear()
 
     def _on_load_photo(self):
-        pass
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Выберите изображение",
+            "",
+            "Images (*.png *.jpg *.jpeg)"
+        )
+        if not path:
+            return
+
+        try:
+            img = Image.open(path).convert("RGBA")
+            img.thumbnail((320, 320), Image.LANCZOS)
+            data = img.tobytes("raw", "RGBA")
+            qimg = QImage(data, img.width, img.height, QImage.Format_RGBA8888)
+            pixmap = QPixmap.fromImage(qimg.copy())
+
+            self.lbl_photo.setPixmap(pixmap)
+            self.lbl_photo.setStyleSheet("border: none;")
+            self.image_path = path
+        except Exception as error:
+            logging.error("photo error: %s", error)
+            QMessageBox.critical(self, "Ошибка", str(error))
 
     def _on_save_history(self):
         if self.final_price is None:
@@ -325,8 +351,36 @@ class MainWindow(QMainWindow):
             self._refresh_history()
         except Exception as error:
             QMessageBox.critical(self, "Ошибка БД", str(error))
+
     def _on_export_csv(self):
-        pass
+        records = self.db.get_all()
+        if not records:
+            QMessageBox.information(self, "Информация", "История пуста")
+            return
+
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Сохранить CSV", "history.csv", "CSV Files (*.csv)"
+        )
+        if not path:
+            return
+
+        try:
+            with open(path, "w", newline="", encoding="utf-8") as file:
+                writer = csv.writer(file)
+                writer.writerow(
+                    ["Цена", "Скидки", "Налог", "Итог", "Экономия", "Дата"]
+                )
+                for rec in records:
+                    writer.writerow([
+                        rec["price"],
+                        rec["discounts"],
+                        rec["tax"],
+                        rec["final_price"],
+                        rec["saved"],
+                        rec["created_at"],
+                    ])
+        except Exception as error:
+            QMessageBox.critical(self, "Ошибка", str(error))
 
     def _refresh_history(self):
         self.table_history.setRowCount(0)
@@ -342,3 +396,16 @@ class MainWindow(QMainWindow):
             self.table_history.setItem(i, 2, QTableWidgetItem(str(rec["tax"])))
             self.table_history.setItem(i, 3, QTableWidgetItem(str(rec["final_price"])))
             self.table_history.setItem(i, 4, QTableWidgetItem(str(rec["saved"])))
+    def closeEvent(self, event):
+        reply = QMessageBox.question(
+            self,
+            "Выход",
+            "Закрыть приложение?",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        if reply == QMessageBox.Yes:
+            if self.db is not None:
+                self.db.close()
+            event.accept()
+        else:
+            event.ignore()
