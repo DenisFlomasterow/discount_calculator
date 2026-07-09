@@ -4,7 +4,7 @@ from PyQt5.QtWidgets import (
     QHeaderView, QGroupBox, QFrame
 )
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QTableWidgetItem
+from PyQt5.QtWidgets import QTableWidgetItem, QMessageBox
 from database import DatabaseManager
 
 class MainWindow(QMainWindow):
@@ -14,6 +14,9 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Калькулятор скидок")
         self.resize(1000, 700)
         self.setMinimumSize(800, 600)
+        self.final_price = None
+        self.saved = None
+        self.image_path = ""
 
         central = QWidget()
         self.setCentralWidget(central)
@@ -195,16 +198,35 @@ class MainWindow(QMainWindow):
 
     def _on_calculate(self):
         price = self.spin_price.value()
-        discount = self.spin_discount.value()
         tax = self.spin_tax.value()
 
-        final_price = price * (1 - discount / 100) * (1 + tax / 100)
-        saved = price - final_price
+        if price <= 0:
+            QMessageBox.warning(self,"Цена должна быть больше 0.")
+            return
 
-        self.lbl_final_price.setText(f"{final_price:.2f} руб.")
-        self.lbl_saved.setText(f"Экономия: {saved:.2f} руб.")
-        self.final_price = final_price
-        self.saved = saved
+        discounts = []
+        for i in range(self.list_discounts.count()):
+            text = self.list_discounts.item(i).text().replace("%", "").strip()
+            try:
+                discounts.append(float(text))
+            except ValueError:
+                pass
+
+        if len(discounts) == 0 and self.spin_discount.value() > 0:
+            discounts.append(self.spin_discount.value())
+
+        current = price
+        for d in discounts:
+            current = current * (1 - d / 100)
+
+        final_price = current * (1 + tax / 100)
+        saved = price - current
+
+        self.final_price = round(final_price, 2)
+        self.saved = round(saved, 2)
+
+        self.lbl_final_price.setText(f"{self.final_price:.2f} руб")
+        self.lbl_saved.setText(f"Экономия: {self.saved:.2f} руб")
 
     def _on_add_discount(self):
         value = self.spin_discount.value()
@@ -224,24 +246,85 @@ class MainWindow(QMainWindow):
         pass
 
     def _on_save_history(self):
-        if hasattr(self, 'final_price'):
-            discounts = ", ".join([self.list_discounts.item(i).text() for i in range(self.list_discounts.count())])
-            data = {
-                "price": self.spin_price.value(),
-                "discounts": discounts,
-                "tax": self.spin_tax.value(),
-                "final_price": self.final_price,
-                "saved": self.saved
-            }
+        if self.final_price is None:
+            QMessageBox.warning(self, "Сначала выполните расчёт.")
+            return
+
+        discounts = []
+        for i in range(self.list_discounts.count()):
+            discounts.append(self.list_discounts.item(i).text())
+        discounts_text = ", ".join(discounts)
+        if discounts_text == "":
+            discounts_text = "0%"
+
+        data = {
+            "price": self.spin_price.value(),
+            "discounts": discounts_text,
+            "tax": self.spin_tax.value(),
+            "final_price": self.final_price,
+            "saved": self.saved,
+            "image_path": self.image_path,
+        }
+
+        try:
             self.db.insert_record(data)
             self._refresh_history()
+        except Exception as error:
+            QMessageBox.critical(self, "Ошибка БД", str(error))
 
     def _on_update_history(self):
-        pass
+        if self.final_price is None:
+            QMessageBox.warning(self, "Внимание", "Сначала выполните расчёт.")
+            return
+
+        selected = self.table_history.selectionModel().selectedRows()
+        if not selected:
+            QMessageBox.warning(self, "Внимание", "Выберите запись.")
+            return
+
+        row = selected[0].row()
+        record_id = self.table_history.item(row, 0).data(Qt.UserRole)
+
+        discounts = []
+        for i in range(self.list_discounts.count()):
+            discounts.append(self.list_discounts.item(i).text())
+        discounts_text = ", ".join(discounts)
+        if discounts_text == "":
+            discounts_text = "0%"
+
+        data = {
+            "price": self.spin_price.value(),
+            "discounts": discounts_text,
+            "tax": self.spin_tax.value(),
+            "final_price": self.final_price,
+            "saved": self.saved,
+            "image_path": self.image_path,
+        }
+
+        try:
+            self.db.update_record(record_id, data)
+            self._refresh_history()
+        except Exception as error:
+            QMessageBox.critical(self, "Ошибка БД", str(error))
 
     def _on_delete_history(self):
-        pass
+        selected = self.table_history.selectionModel().selectedRows()
+        if not selected:
+            QMessageBox.warning(self, "Внимание", "Выберите запись")
+            return
 
+        reply = QMessageBox.question(self, "Подтверждение", "Удалить запись?")
+        if reply != QMessageBox.Yes:
+            return
+
+        row = selected[0].row()
+        record_id = self.table_history.item(row, 0).data(Qt.UserRole)
+
+        try:
+            self.db.delete_record(record_id)
+            self._refresh_history()
+        except Exception as error:
+            QMessageBox.critical(self, "Ошибка БД", str(error))
     def _on_export_csv(self):
         pass
 
@@ -250,8 +333,12 @@ class MainWindow(QMainWindow):
         records = self.db.get_all()
         for i, rec in enumerate(records):
             self.table_history.insertRow(i)
-            self.table_history.setItem(i, 0, QTableWidgetItem(str(rec["price"])))
-            self.table_history.setItem(i, 1, QTableWidgetItem(rec["discounts"]))
+
+            item = QTableWidgetItem(str(rec["price"]))
+            item.setData(Qt.UserRole, rec["id"])
+            self.table_history.setItem(i, 0, item)
+
+            self.table_history.setItem(i, 1, QTableWidgetItem(str(rec["discounts"])))
             self.table_history.setItem(i, 2, QTableWidgetItem(str(rec["tax"])))
             self.table_history.setItem(i, 3, QTableWidgetItem(str(rec["final_price"])))
             self.table_history.setItem(i, 4, QTableWidgetItem(str(rec["saved"])))
