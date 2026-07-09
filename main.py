@@ -2,9 +2,7 @@ import logging
 import sys
 
 from PyQt5.QtWidgets import QApplication
-
 from design import MainWindow
-
 
 logging.basicConfig(
     filename="app.log",
@@ -15,7 +13,6 @@ logging.basicConfig(
 
 def main():
     app = QApplication(sys.argv)
-
     try:
         window = MainWindow()
         window.show()

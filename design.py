@@ -12,6 +12,8 @@ from PyQt5.QtWidgets import (
 from PIL import Image
 
 from database import DatabaseManager
+
+
 class MainWindow(QMainWindow):
 
     def __init__(self):
@@ -155,6 +157,7 @@ class MainWindow(QMainWindow):
         self.lbl_status = QLabel("")
         self.lbl_status.setAlignment(Qt.AlignCenter)
         main_layout.addWidget(self.lbl_status)
+
     def _apply_styles(self):
         self.setStyleSheet("""
             QMainWindow {
@@ -196,10 +199,19 @@ class MainWindow(QMainWindow):
         self.btn_remove_discount.clicked.connect(self._on_remove_discount)
         self.btn_clear_discounts.clicked.connect(self._on_clear_discounts)
         self.btn_load_photo.clicked.connect(self._on_load_photo)
-        self.btn_save_history.clicked.connect(self._on_save_history)
-        self.btn_update_history.clicked.connect(self._on_update_history)
-        self.btn_delete_history.clicked.connect(self._on_delete_history)
+        self.btn_save_history.clicked.connect(self._on_history_action)
+        self.btn_update_history.clicked.connect(self._on_history_action)
+        self.btn_delete_history.clicked.connect(self._on_history_action)
         self.btn_export_csv.clicked.connect(self._on_export_csv)
+
+    def _on_history_action(self):
+        sender = self.sender()
+        if sender == self.btn_save_history:
+            self._on_save_history()
+        elif sender == self.btn_update_history:
+            self._on_update_history()
+        elif sender == self.btn_delete_history:
+            self._on_delete_history()
 
     def _on_calculate(self):
         price = self.spin_price.value()
@@ -396,6 +408,7 @@ class MainWindow(QMainWindow):
             self.table_history.setItem(i, 2, QTableWidgetItem(str(rec["tax"])))
             self.table_history.setItem(i, 3, QTableWidgetItem(str(rec["final_price"])))
             self.table_history.setItem(i, 4, QTableWidgetItem(str(rec["saved"])))
+
     def closeEvent(self, event):
         reply = QMessageBox.question(
             self,
@@ -409,3 +422,7 @@ class MainWindow(QMainWindow):
             event.accept()
         else:
             event.ignore()
+
+    def _show_status(self, text):
+        self.lbl_status.setText(text)
+        QTimer.singleShot(2000, lambda: self.lbl_status.setText(""))
