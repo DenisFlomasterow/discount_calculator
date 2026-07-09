@@ -21,6 +21,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Калькулятор скидок")
         self.resize(1000, 700)
         self.setMinimumSize(800, 600)
+
         self.final_price = None
         self.saved = None
         self.image_path = ""
@@ -31,7 +32,7 @@ class MainWindow(QMainWindow):
         self._setup_ui()
         self._apply_styles()
         self._bind_signals()
-        self._init_db()
+        self._data_layer()
 
     def _setup_ui(self):
         main_layout = QVBoxLayout()
@@ -188,20 +189,22 @@ class MainWindow(QMainWindow):
             }
         """)
 
-    def _init_db(self):
+    def _data_layer(self):
         self.db = DatabaseManager()
         self.db.init_db()
         self._refresh_history()
 
     def _bind_signals(self):
-        self.btn_calculate.clicked.connect(self._on_calculate)
+        self.btn_calculate.clicked.connect(self._logic)
         self.btn_add_discount.clicked.connect(self._on_add_discount)
         self.btn_remove_discount.clicked.connect(self._on_remove_discount)
         self.btn_clear_discounts.clicked.connect(self._on_clear_discounts)
         self.btn_load_photo.clicked.connect(self._on_load_photo)
+
         self.btn_save_history.clicked.connect(self._on_history_action)
         self.btn_update_history.clicked.connect(self._on_history_action)
         self.btn_delete_history.clicked.connect(self._on_history_action)
+
         self.btn_export_csv.clicked.connect(self._on_export_csv)
 
     def _on_history_action(self):
@@ -213,12 +216,12 @@ class MainWindow(QMainWindow):
         elif sender == self.btn_delete_history:
             self._on_delete_history()
 
-    def _on_calculate(self):
+    def _logic(self):
         price = self.spin_price.value()
         tax = self.spin_tax.value()
 
         if price <= 0:
-            QMessageBox.warning(self, "Ошибка", "Цена должна быть больше 0")
+            QMessageBox.warning(self, "Ошибка", "Цена должна быть больше 0.")
             return
 
         discounts = []
@@ -227,7 +230,8 @@ class MainWindow(QMainWindow):
             try:
                 discounts.append(float(text))
             except ValueError:
-                pass
+                QMessageBox.warning(self, "Ошибка", "Некорректная скидка в списке.")
+                return
 
         if len(discounts) == 0 and self.spin_discount.value() > 0:
             discounts.append(self.spin_discount.value())
@@ -244,6 +248,8 @@ class MainWindow(QMainWindow):
 
         self.lbl_final_price.setText(f"{self.final_price:.2f} руб")
         self.lbl_saved.setText(f"Экономия: {self.saved:.2f} руб")
+
+        self._show_status("Расчёт выполнен")
 
     def _on_add_discount(self):
         value = self.spin_discount.value()
@@ -279,13 +285,14 @@ class MainWindow(QMainWindow):
             self.lbl_photo.setPixmap(pixmap)
             self.lbl_photo.setStyleSheet("border: none;")
             self.image_path = path
+            self._show_status("Фото загружено")
         except Exception as error:
-            logging.error("photo error: %s", error)
-            QMessageBox.critical(self, "Ошибка", str(error))
+            logging.error("Ошибка загрузки фото: %s", error)
+            QMessageBox.critical(self, "Ошибка", f"Не удалось загрузить фото:\n{error}")
 
     def _on_save_history(self):
         if self.final_price is None:
-            QMessageBox.warning(self, "Внимание", "Сначала выполните расчёт")
+            QMessageBox.warning(self, "Внимание", "Сначала выполните расчёт.")
             return
 
         discounts = []
@@ -307,17 +314,18 @@ class MainWindow(QMainWindow):
         try:
             self.db.insert_record(data)
             self._refresh_history()
+            self._show_status("Успешно сохранено")
         except Exception as error:
             QMessageBox.critical(self, "Ошибка БД", str(error))
 
     def _on_update_history(self):
         if self.final_price is None:
-            QMessageBox.warning(self, "Внимание", "Сначала выполните расчёт")
+            QMessageBox.warning(self, "Внимание", "Сначала выполните расчёт.")
             return
 
         selected = self.table_history.selectionModel().selectedRows()
         if not selected:
-            QMessageBox.warning(self, "Внимание", "Выберите запись")
+            QMessageBox.warning(self, "Внимание", "Выберите запись для обновления.")
             return
 
         row = selected[0].row()
@@ -342,13 +350,14 @@ class MainWindow(QMainWindow):
         try:
             self.db.update_record(record_id, data)
             self._refresh_history()
+            self._show_status("Запись обновлена")
         except Exception as error:
             QMessageBox.critical(self, "Ошибка БД", str(error))
 
     def _on_delete_history(self):
         selected = self.table_history.selectionModel().selectedRows()
         if not selected:
-            QMessageBox.warning(self, "Внимание", "Выберите запись")
+            QMessageBox.warning(self, "Внимание", "Выберите запись для удаления.")
             return
 
         reply = QMessageBox.question(self, "Подтверждение", "Удалить запись?")
@@ -361,13 +370,14 @@ class MainWindow(QMainWindow):
         try:
             self.db.delete_record(record_id)
             self._refresh_history()
+            self._show_status("Запись удалена")
         except Exception as error:
             QMessageBox.critical(self, "Ошибка БД", str(error))
 
     def _on_export_csv(self):
         records = self.db.get_all()
         if not records:
-            QMessageBox.information(self, "Информация", "История пуста")
+            QMessageBox.information(self, "Информация", "История пуста.")
             return
 
         path, _ = QFileDialog.getSaveFileName(
@@ -391,6 +401,7 @@ class MainWindow(QMainWindow):
                         rec["saved"],
                         rec["created_at"],
                     ])
+            self._show_status("CSV сохранен")
         except Exception as error:
             QMessageBox.critical(self, "Ошибка", str(error))
 
@@ -409,6 +420,10 @@ class MainWindow(QMainWindow):
             self.table_history.setItem(i, 3, QTableWidgetItem(str(rec["final_price"])))
             self.table_history.setItem(i, 4, QTableWidgetItem(str(rec["saved"])))
 
+    def _show_status(self, text):
+        self.lbl_status.setText(text)
+        QTimer.singleShot(2000, lambda: self.lbl_status.setText(""))
+
     def closeEvent(self, event):
         reply = QMessageBox.question(
             self,
@@ -419,10 +434,7 @@ class MainWindow(QMainWindow):
         if reply == QMessageBox.Yes:
             if self.db is not None:
                 self.db.close()
+            logging.info("Приложение закрыто")
             event.accept()
         else:
             event.ignore()
-
-    def _show_status(self, text):
-        self.lbl_status.setText(text)
-        QTimer.singleShot(2000, lambda: self.lbl_status.setText(""))
