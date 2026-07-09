@@ -206,7 +206,7 @@ class MainWindow(QMainWindow):
         tax = self.spin_tax.value()
 
         if price <= 0:
-            QMessageBox.warning(self,"Цена должна быть больше 0.")
+            QMessageBox.warning(self, "Ошибка", "Цена должна быть больше 0")
             return
 
         discounts = []
@@ -273,7 +273,7 @@ class MainWindow(QMainWindow):
 
     def _on_save_history(self):
         if self.final_price is None:
-            QMessageBox.warning(self, "Сначала выполните расчёт.")
+            QMessageBox.warning(self, "Внимание", "Сначала выполните расчёт")
             return
 
         discounts = []
@@ -300,12 +300,12 @@ class MainWindow(QMainWindow):
 
     def _on_update_history(self):
         if self.final_price is None:
-            QMessageBox.warning(self, "Внимание", "Сначала выполните расчёт.")
+            QMessageBox.warning(self, "Внимание", "Сначала выполните расчёт")
             return
 
         selected = self.table_history.selectionModel().selectedRows()
         if not selected:
-            QMessageBox.warning(self, "Внимание", "Выберите запись.")
+            QMessageBox.warning(self, "Внимание", "Выберите запись")
             return
 
         row = selected[0].row()
