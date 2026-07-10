@@ -38,6 +38,5 @@ discount_calculator/
 ├── database.py          # Работа с SQLite, CRUD-операции
 ├── requirements.txt     # Зависимости проекта
 ├── .gitignore           # Исключения для Git
-├── TEST_PLAN.md         # Базовый тест-план
 ├── screenshot.png       # Скриншот интерфейса программы
 └── README.md            # Описание проекта и инструкция по запуску
