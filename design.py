@@ -2,12 +2,12 @@ import csv
 import logging
 
 from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtGui import QImage, QPixmap
+from PyQt5.QtGui import QImage, QPixmap, QKeySequence
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QFormLayout,
     QPushButton, QLabel, QDoubleSpinBox, QListWidget, QTableWidget,
     QHeaderView, QGroupBox, QFrame, QMessageBox, QFileDialog,
-    QTableWidgetItem
+    QTableWidgetItem, QShortcut
 )
 from PIL import Image
 
@@ -32,6 +32,7 @@ class MainWindow(QMainWindow):
         self._setup_ui()
         self._apply_styles()
         self._bind_signals()
+        self._setup_shortcuts()
         self._data_layer()
 
     def _setup_ui(self):
@@ -158,6 +159,8 @@ class MainWindow(QMainWindow):
         self.lbl_status = QLabel("")
         self.lbl_status.setAlignment(Qt.AlignCenter)
         main_layout.addWidget(self.lbl_status)
+        self.btn_calculate.setToolTip("Ctrl+R — рассчитать")
+        self.btn_save_history.setToolTip("Ctrl+S — сохранить")
 
     def _apply_styles(self):
         self.setStyleSheet("""
@@ -206,6 +209,13 @@ class MainWindow(QMainWindow):
         self.btn_delete_history.clicked.connect(self._on_history_action)
 
         self.btn_export_csv.clicked.connect(self._on_export_csv)
+
+    def _setup_shortcuts(self):
+        self.shortcut_calculate = QShortcut(QKeySequence("Ctrl+R"), self)
+        self.shortcut_calculate.activated.connect(self._logic)
+
+        self.shortcut_save = QShortcut(QKeySequence("Ctrl+S"), self)
+        self.shortcut_save.activated.connect(self._on_save_history)
 
     def _on_history_action(self):
         sender = self.sender()
