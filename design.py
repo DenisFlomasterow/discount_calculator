@@ -1,6 +1,6 @@
 import csv
 import logging
-
+import os
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QImage, QPixmap, QKeySequence
 from PyQt5.QtWidgets import (
@@ -34,6 +34,7 @@ class MainWindow(QMainWindow):
         self._bind_signals()
         self._setup_shortcuts()
         self._data_layer()
+        #self._load_default_photo()
 
     def _setup_ui(self):
         main_layout = QVBoxLayout()
@@ -275,6 +276,43 @@ class MainWindow(QMainWindow):
     def _on_clear_discounts(self):
         self.list_discounts.clear()
 
+    def _show_photo(self, path):
+        try:
+            with Image.open(path) as img:
+                img = img.convert("RGBA")
+
+                try:
+                    resample = Image.Resampling.LANCZOS
+                except AttributeError:
+                    resample = Image.LANCZOS
+
+                img.thumbnail((320, 320), resample)
+
+                data = img.tobytes("raw", "RGBA")
+                qimg = QImage(
+                    data,
+                    img.width,
+                    img.height,
+                    QImage.Format_RGBA8888
+                ).copy()
+
+                pixmap = QPixmap.fromImage(qimg)
+
+            self.lbl_photo.setPixmap(pixmap)
+            self.lbl_photo.setText("")
+            self.lbl_photo.setStyleSheet("border: none;")
+            self.image_path = path
+            return True
+
+        except Exception as error:
+            logging.error("Ошибка загрузки фото: %s", error)
+            QMessageBox.critical(
+                self,
+                "Ошибка",
+                f"Не удалось загрузить фото:\n{error}"
+            )
+            return False
+
     def _on_load_photo(self):
         path, _ = QFileDialog.getOpenFileName(
             self,
@@ -282,23 +320,12 @@ class MainWindow(QMainWindow):
             "",
             "Images (*.png *.jpg *.jpeg)"
         )
+
         if not path:
             return
 
-        try:
-            img = Image.open(path).convert("RGBA")
-            img.thumbnail((320, 320), Image.LANCZOS)
-            data = img.tobytes("raw", "RGBA")
-            qimg = QImage(data, img.width, img.height, QImage.Format_RGBA8888)
-            pixmap = QPixmap.fromImage(qimg.copy())
-
-            self.lbl_photo.setPixmap(pixmap)
-            self.lbl_photo.setStyleSheet("border: none;")
-            self.image_path = path
+        if self._show_photo(path):
             self._show_status("Фото загружено")
-        except Exception as error:
-            logging.error("Ошибка загрузки фото: %s", error)
-            QMessageBox.critical(self, "Ошибка", f"Не удалось загрузить фото:\n{error}")
 
     def _on_save_history(self):
         if self.final_price is None:
